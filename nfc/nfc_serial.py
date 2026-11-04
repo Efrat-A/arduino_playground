@@ -9,14 +9,23 @@ import time
 from pathlib import Path
 
 import serial
+import serial.tools.list_ports
 
 DEFAULT_CONFIG_PATH = Path(__file__).parent / "pins.cfg"
+
+
+class NfcConnectionError(Exception):
+    """Raised when the configured serial port can't be opened."""
 
 
 def load_config(config_path=DEFAULT_CONFIG_PATH):
     parser = configparser.ConfigParser()
     parser.read(config_path)
     return parser
+
+
+def _available_ports():
+    return [p.device for p in serial.tools.list_ports.comports()]
 
 
 def open_connection(config_path=DEFAULT_CONFIG_PATH):
@@ -26,7 +35,19 @@ def open_connection(config_path=DEFAULT_CONFIG_PATH):
     timeout = config.getfloat("serial", "timeout", fallback=2.0)
     boot_delay = config.getfloat("serial", "boot_delay", fallback=2.0)
 
-    conn = serial.Serial(port, baud, timeout=timeout)
+    try:
+        conn = serial.Serial(port, baud, timeout=timeout)
+    except serial.SerialException as exc:
+        ports = _available_ports()
+        if ports:
+            hint = "Ports currently available: " + ", ".join(ports)
+        else:
+            hint = "No serial ports detected at all - is the Arduino plugged in?"
+        raise NfcConnectionError(
+            f"Couldn't open '{port}' (from {config_path}): {exc}\n{hint}\n"
+            f"Update the [serial] port in {config_path} to match."
+        ) from exc
+
     time.sleep(boot_delay)  # let the Arduino finish its reset-on-connect
     conn.reset_input_buffer()
     return conn

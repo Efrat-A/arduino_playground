@@ -4,7 +4,7 @@
 import argparse
 import sys
 
-from nfc_serial import DEFAULT_CONFIG_PATH, open_connection, send_command
+from nfc_serial import DEFAULT_CONFIG_PATH, NfcConnectionError, open_connection, send_command
 
 
 def main():
@@ -12,7 +12,11 @@ def main():
     parser.add_argument("--config", default=DEFAULT_CONFIG_PATH, help="Path to pins.cfg")
     args = parser.parse_args()
 
-    conn = open_connection(args.config)
+    try:
+        conn = open_connection(args.config)
+    except NfcConnectionError as exc:
+        print(exc, file=sys.stderr)
+        sys.exit(1)
     print("Tap a tag...")
     response = send_command(conn, "READ")
 
@@ -26,6 +30,9 @@ def main():
         print(f"TEXT: {text}")
     elif response == "ERR TIMEOUT":
         print("No tag detected within the timeout.", file=sys.stderr)
+        sys.exit(1)
+    elif response == "ERR NO_READER":
+        print("The RC522 isn't responding - check the wiring.", file=sys.stderr)
         sys.exit(1)
     else:
         print(f"Unexpected response: {response!r}", file=sys.stderr)

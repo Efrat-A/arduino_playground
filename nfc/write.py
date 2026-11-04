@@ -4,7 +4,7 @@
 import argparse
 import sys
 
-from nfc_serial import DEFAULT_CONFIG_PATH, open_connection, send_command
+from nfc_serial import DEFAULT_CONFIG_PATH, NfcConnectionError, open_connection, send_command
 
 MAX_TEXT_BYTES = 16  # one Mifare Classic data block
 
@@ -22,7 +22,11 @@ def main():
         print("Text can't contain newlines.", file=sys.stderr)
         sys.exit(1)
 
-    conn = open_connection(args.config)
+    try:
+        conn = open_connection(args.config)
+    except NfcConnectionError as exc:
+        print(exc, file=sys.stderr)
+        sys.exit(1)
     print("Tap a tag...")
     response = send_command(conn, f"WRITE {args.text}")
 
@@ -31,6 +35,9 @@ def main():
         print(f"Written. UID: {uid}")
     elif response == "ERR TIMEOUT":
         print("No tag detected within the timeout.", file=sys.stderr)
+        sys.exit(1)
+    elif response == "ERR NO_READER":
+        print("The RC522 isn't responding - check the wiring.", file=sys.stderr)
         sys.exit(1)
     elif response == "ERR TOO_LONG":
         print("Arduino rejected the text as too long.", file=sys.stderr)
